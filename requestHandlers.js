@@ -2,6 +2,7 @@
 var sql     = require('mssql');
 var http    = require('http');
 var https   = require('https');
+var s3      = require('./s3');
 
 const sqlConfig = {
   user: 'sa',
@@ -38,6 +39,8 @@ function  StartProcess ( path, req, res ) {
     // case '/jur_invoices':           invoices( req, res );break;
     // case '/jur_actsverki':          actSverki( req, res );break;
     // case '/jur_invoice_image':      method1( req, res );break;
+    case '/s3_upload_url':              s3UploadUrl( req, res );break;
+    case '/s3_download_url':            s3DownloadUrl( req, res );break;
     default:                            reqAPI( path.substring(1), req, res  ); break;
     // default :                       method( 'default', req, res );break;
   }
@@ -326,6 +329,73 @@ function        reqAPI1( method, req, res){
 
 }
 
+
+function        writeJson( res, body ) {
+  res.writeHead(200, { 'Content-Type': 'application/json;charset=utf8' });
+  res.write(JSON.stringify(body));
+  res.end();
+}
+
+function        s3Params( req ) {
+  if (req.route && req.route.stack && req.route.stack[0] && req.route.stack[0].method === 'get') return req.query || {};
+  return req.body || {};
+}
+
+async function  s3UploadUrl( req, res ) {
+  if (!s3.credentialsReady()) {
+    writeJson(res, { error: true, message: 'S3: не заданы REG_ACCESS_KEY и REG_SECRET_KEY' });
+    return;
+  }
+
+  var params = s3Params(req);
+  var key = s3.normalizeKey(params.key);
+  if (!key) {
+    writeJson(res, { error: true, message: 'Некорректный key' });
+    return;
+  }
+
+  var expiresIn = s3.normalizeExpires(params.expiresIn);
+  if (expiresIn === null) {
+    writeJson(res, { error: true, message: 'Некорректный expiresIn' });
+    return;
+  }
+
+  var contentType = params.contentType ? String(params.contentType) : undefined;
+
+  try {
+    writeJson(res, await s3.presignUpload(key, contentType, expiresIn));
+  } catch (e) {
+    console.log(e);
+    writeJson(res, { error: true, message: e.message });
+  }
+}
+
+async function  s3DownloadUrl( req, res ) {
+  if (!s3.credentialsReady()) {
+    writeJson(res, { error: true, message: 'S3: не заданы REG_ACCESS_KEY и REG_SECRET_KEY' });
+    return;
+  }
+
+  var params = s3Params(req);
+  var key = s3.normalizeKey(params.key);
+  if (!key) {
+    writeJson(res, { error: true, message: 'Некорректный key' });
+    return;
+  }
+
+  var expiresIn = s3.normalizeExpires(params.expiresIn);
+  if (expiresIn === null) {
+    writeJson(res, { error: true, message: 'Некорректный expiresIn' });
+    return;
+  }
+
+  try {
+    writeJson(res, await s3.presignDownload(key, expiresIn));
+  } catch (e) {
+    console.log(e);
+    writeJson(res, { error: true, message: e.message });
+  }
+}
 
 function        sendSMS( phone, pincode, f_success, f_error ){
   var options = {
