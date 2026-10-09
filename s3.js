@@ -1,10 +1,35 @@
+const fs = require('fs');
+const path = require('path');
 const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
+function loadEnv() {
+  const envPath = path.join(__dirname, '.env');
+  if (!fs.existsSync(envPath)) return;
+  const text = fs.readFileSync(envPath, 'utf8');
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    const name = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (process.env[name] === undefined) process.env[name] = value;
+  }
+}
+
+loadEnv();
+
+function endpointFromUrl(url) {
+  const value = (url || 's3.regru.cloud').trim();
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  return 'https://' + value;
+}
+
 const REG_CONFIG = {
   REGION: 'ru-1',
-  ENDPOINT: 'https://s3.regru.cloud',
-  BUCKET: 'stng',
+  ENDPOINT: endpointFromUrl(process.env.REG_URL),
+  BUCKET: process.env.REG_BUCKET || 'stng',
   ACCESS_KEY: process.env.REG_ACCESS_KEY,
   SECRET_KEY: process.env.REG_SECRET_KEY,
 };
