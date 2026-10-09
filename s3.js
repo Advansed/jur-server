@@ -10,7 +10,25 @@ const REG_CONFIG = {
 };
 
 const DEFAULT_EXPIRES = 900;
-const MAX_EXPIRES = 3600;
+
+const CONTENT_TYPES = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  json: 'application/json',
+  xml: 'application/xml',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  zip: 'application/zip',
+  mp4: 'video/mp4',
+};
 
 const regClient = new S3Client({
   region: REG_CONFIG.REGION,
@@ -34,28 +52,37 @@ function normalizeKey(key) {
   return trimmed;
 }
 
-function normalizeExpires(expiresIn) {
-  if (expiresIn === undefined || expiresIn === null || expiresIn === '') return DEFAULT_EXPIRES;
-  const n = Number(expiresIn);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.min(Math.floor(n), MAX_EXPIRES);
+function contentTypeFromKey(key) {
+  const name = key.split('/').pop();
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) return 'application/octet-stream';
+  const ext = name.slice(dot + 1).toLowerCase();
+  return CONTENT_TYPES[ext] || 'application/octet-stream';
 }
 
-async function presignUpload(key, contentType, expiresIn) {
-  const input = {
-    Bucket: REG_CONFIG.BUCKET,
-    Key: key,
+async function presignUpload(key) {
+  const contentType = contentTypeFromKey(key);
+  const expiresIn = DEFAULT_EXPIRES;
+  const url = await getSignedUrl(
+    regClient,
+    new PutObjectCommand({
+      Bucket: REG_CONFIG.BUCKET,
+      Key: key,
+      ContentType: contentType,
+    }),
+    { expiresIn }
+  );
+  return {
+    url,
+    method: 'PUT',
+    key,
+    expiresIn,
+    headers: { 'Content-Type': contentType },
   };
-  const headers = {};
-  if (contentType) {
-    input.ContentType = contentType;
-    headers['Content-Type'] = contentType;
-  }
-  const url = await getSignedUrl(regClient, new PutObjectCommand(input), { expiresIn });
-  return { url, method: 'PUT', key, expiresIn, headers };
 }
 
-async function presignDownload(key, expiresIn) {
+async function presignDownload(key) {
+  const expiresIn = DEFAULT_EXPIRES;
   const url = await getSignedUrl(
     regClient,
     new GetObjectCommand({ Bucket: REG_CONFIG.BUCKET, Key: key }),
@@ -67,7 +94,6 @@ async function presignDownload(key, expiresIn) {
 module.exports = {
   credentialsReady,
   normalizeKey,
-  normalizeExpires,
   presignUpload,
   presignDownload,
 };

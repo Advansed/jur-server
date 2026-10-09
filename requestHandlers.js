@@ -347,23 +347,14 @@ async function  s3UploadUrl( req, res ) {
     return;
   }
 
-  var params = s3Params(req);
-  var key = s3.normalizeKey(params.key);
+  var key = s3.normalizeKey(s3Params(req).key);
   if (!key) {
     writeJson(res, { error: true, message: 'Некорректный key' });
     return;
   }
 
-  var expiresIn = s3.normalizeExpires(params.expiresIn);
-  if (expiresIn === null) {
-    writeJson(res, { error: true, message: 'Некорректный expiresIn' });
-    return;
-  }
-
-  var contentType = params.contentType ? String(params.contentType) : undefined;
-
   try {
-    writeJson(res, await s3.presignUpload(key, contentType, expiresIn));
+    writeJson(res, await s3.presignUpload(key));
   } catch (e) {
     console.log(e);
     writeJson(res, { error: true, message: e.message });
@@ -376,21 +367,14 @@ async function  s3DownloadUrl( req, res ) {
     return;
   }
 
-  var params = s3Params(req);
-  var key = s3.normalizeKey(params.key);
+  var key = s3.normalizeKey(s3Params(req).key);
   if (!key) {
     writeJson(res, { error: true, message: 'Некорректный key' });
     return;
   }
 
-  var expiresIn = s3.normalizeExpires(params.expiresIn);
-  if (expiresIn === null) {
-    writeJson(res, { error: true, message: 'Некорректный expiresIn' });
-    return;
-  }
-
   try {
-    writeJson(res, await s3.presignDownload(key, expiresIn));
+    writeJson(res, await s3.presignDownload(key));
   } catch (e) {
     console.log(e);
     writeJson(res, { error: true, message: e.message });
